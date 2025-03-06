@@ -4,16 +4,26 @@ import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { kadDHT } from '@libp2p/kad-dht'
 import { identify } from '@libp2p/identify'
+import { bootstrap } from '@libp2p/bootstrap' // Import bootstrap
 import { pipe } from 'it-pipe'
 import { toString } from 'uint8arrays/to-string'
-import { Uint8ArrayList } from 'uint8arraylist' // Import Uint8ArrayList for handling chunks
+import { Uint8ArrayList } from 'uint8arraylist'
+
+// Define bootstrap peers
+const bootstrapPeers = [
+  '/ip4/192.168.18.65/tcp/15001/p2p/YOUR_PEER_ID' // Replace with actual Peer ID
+]
 
 const node = await createLibp2p({
   addresses: { listen: ['/ip4/0.0.0.0/tcp/15001'] },
   transports: [tcp()],
   connectionEncrypters: [noise()],
   streamMuxers: [yamux()],
-  services: { dht: kadDHT(), identify: identify() }
+  services: {
+    dht: kadDHT({ protocol: '/ipfs/kad/1.0.0', clientMode: false }), // Enable full DHT mode
+    identify: identify(),
+    bootstrap: bootstrap({ list: bootstrapPeers }) // Add bootstrap peers
+  }
 })
 
 await node.start()
@@ -31,12 +41,10 @@ node.handle('/chat/1.0.0', async ({ stream }) => {
         for await (let chunk of source) {
           console.log('🧐 Raw chunk received:', chunk)
 
-          // ✅ Fix: Extract buffer from Uint8ArrayList
           if (chunk instanceof Uint8ArrayList) {
-            chunk = chunk.subarray() // Convert Uint8ArrayList to a single Uint8Array
+            chunk = chunk.subarray() // Convert Uint8ArrayList to Uint8Array
           }
 
-          // ✅ Convert chunk to string safely
           try {
             const message = toString(chunk)
             console.log('💬 Received message:', message)
@@ -49,6 +57,11 @@ node.handle('/chat/1.0.0', async ({ stream }) => {
   } catch (error) {
     console.error('❌ Error reading message:', error)
   }
+})
+
+// Log discovered peers
+node.addEventListener('peer:discovery', (evt) => {
+  console.log(`🔍 Discovered peer: ${evt.detail.id.toString()}`)
 })
 
 process.on('SIGINT', async () => {
