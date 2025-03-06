@@ -36,6 +36,8 @@
     "@libp2p/ping": "^2.0.25",
     "@libp2p/tcp": "^10.1.6",
     "@multiformats/multiaddr": "^12.4.0",
+    "it-map": "^3.1.1",
+    "it-pipe": "^3.0.1",
     "libp2p": "^2.8.0",
     "multiaddr": "^10.0.1"
   }
