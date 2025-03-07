@@ -8,22 +8,32 @@ import { bootstrap } from '@libp2p/bootstrap'
 import { pipe } from 'it-pipe'
 import { fromString } from 'uint8arrays/from-string'
 import readline from 'readline'
+import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
+import fetch from 'node-fetch'; // Used to get geolocation
 
 const bootstrapPeers = [
   '/ip4/192.168.18.65/tcp/15001/p2p/YOUR_PEER_ID',
-  '/ip4/127.0.0.1/tcp/15001/p2p/12D3KooWKZj27JgRRF24zGFYcMhYSw6Kd8cUq3aRxjRJ1nmnuT5D',
+  '/ip4/192.168.18.65/tcp/15001/p2p/12D3KooWLY2Po8XsoaJZFwo7vjuZwYu7qSQMU34f8s4mW9eJgvMT',
+  '/ip4/192.168.18.65/tcp/15001//12D3KooWNsPf1UeetEcFPYjQX4wVoESpZkjoBTR9LAjHZ7mHJV8B',
 ]
 
 const node = await createLibp2p({
   addresses: { listen: ['/ip4/0.0.0.0/tcp/0'] },
-  transports: [tcp()],
+  transports: [tcp(), circuitRelayTransport()],
   connectionEncrypters: [noise()],
   streamMuxers: [yamux()],
   services: {
     dht: kadDHT({ protocol: '/ipfs/kad/1.0.0', clientMode: true }),
     identify: identify(),
     bootstrap: bootstrap({ list: bootstrapPeers })
-  }
+  },
+  relay: {
+    enabled: true,
+    hop: {
+      enabled: true,
+      active: true,
+    },
+  },
 })
 
 await node.start()

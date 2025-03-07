@@ -9,6 +9,7 @@ import { pipe } from 'it-pipe'
 import { toString } from 'uint8arrays/to-string'
 import { Uint8ArrayList } from 'uint8arraylist'
 import readline from 'readline'
+import { circuitRelayServer } from '@libp2p/circuit-relay-v2';
 
 // Bootstrap peers
 const bootstrapPeers = [
@@ -23,7 +24,8 @@ const node = await createLibp2p({
   services: {
     dht: kadDHT({ protocol: '/ipfs/kad/1.0.0', clientMode: false }),
     identify: identify(),
-    bootstrap: bootstrap({ list: bootstrapPeers })
+    bootstrap: bootstrap({ list: bootstrapPeers }),
+    relay: circuitRelayServer({})
   }
 })
 
