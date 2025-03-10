@@ -34,6 +34,7 @@
     "@libp2p/circuit-relay-v2": "^3.2.6",
     "@libp2p/identify": "^3.0.25",
     "@libp2p/kad-dht": "^14.2.13",
+    "@libp2p/peer-id": "^5.0.16",
     "@libp2p/ping": "^2.0.25",
     "@libp2p/tcp": "^10.1.6",
     "@multiformats/multiaddr": "^12.4.0",
