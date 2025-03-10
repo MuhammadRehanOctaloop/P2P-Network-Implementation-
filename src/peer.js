@@ -38,11 +38,24 @@ console.log('📡 Listening on:', node.getMultiaddrs().map(ma => ma.toString()).
 // Function to get system bandwidth and latency
 async function getNodeStats() {
   return {
-    location: 'Unknown', // Ideally use a geolocation API to fetch real location
+    location: await getLocation(), // Ideally use a geolocation API to fetch real location
     latency: await measureLatency(),
     bandwidth: getNetworkBandwidth()
   }
 }
+
+// for location
+
+async function getLocation() {
+    try {
+      const res = await fetch('http://ip-api.com/json/')
+      const data = await res.json()
+      return `${data.city}, ${data.country}`
+    } catch (error) {
+      console.error("❌ Failed to fetch location:", error)
+      return "Unknown"
+    }
+  }
 
 // Simulate measuring latency
 async function measureLatency() {
