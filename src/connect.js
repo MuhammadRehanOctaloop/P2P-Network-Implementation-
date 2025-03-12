@@ -9,16 +9,19 @@ import { pipe } from 'it-pipe'
 import { fromString } from 'uint8arrays/from-string'
 import readline from 'readline'
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
-import fetch from 'node-fetch'; // Used to get geolocation
-import { connectDB } from "./database.js"; // Import DB connection
+import { connectDB } from "./database.js";
+import { Peer } from "./peerModel.js";
 
-await connectDB(); // Connect to MongoDB at startup
+await connectDB();
 
-const bootstrapPeers = [
-  '/ip4/192.168.18.65/tcp/15001/p2p/YOUR_PEER_ID',
-  '/ip4/192.168.18.65/tcp/15001/p2p/12D3KooWLY2Po8XsoaJZFwo7vjuZwYu7qSQMU34f8s4mW9eJgvMT',
-  '/ip4/192.168.18.65/tcp/15001//12D3KooWNsPf1UeetEcFPYjQX4wVoESpZkjoBTR9LAjHZ7mHJV8B',
-]
+async function getBootstrapPeers() {
+  const peers = await Peer.find();
+  return peers.flatMap(peer => peer.multiaddrs);
+}
+
+const bootstrapPeers = await getBootstrapPeers();
+
+console.log(bootstrapPeers);
 
 const node = await createLibp2p({
   addresses: { listen: ['/ip4/0.0.0.0/tcp/0'] },
@@ -37,7 +40,7 @@ const node = await createLibp2p({
       active: true,
     },
   },
-})
+});
 
 await node.start()
 console.log('✅ Node started with ID:', node.peerId.toString())
@@ -67,13 +70,13 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 
 async function sendMessage(targetPeerId) {
   try {
-    const stream = await node.dialProtocol(targetPeerId, '/chat/1.0.0')
+    const stream = await node.dialProtocol(targetPeerId, '/chat/1.0.0');
     rl.question('Enter message: ', async (message) => {
-      await pipe([fromString(message)], stream.sink)
-      console.log('📨 Message sent!')
-      sendMessage(targetPeerId)
-    })
+      await pipe([fromString(message)], stream.sink);
+      console.log('📨 Message sent!');
+      sendMessage(targetPeerId);
+    });
   } catch (err) {
-    console.error('❌ Failed to send message:', err)
+    console.error('❌ Failed to send message:', err);
   }
 }

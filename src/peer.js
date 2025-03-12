@@ -108,11 +108,11 @@ function getNetworkBandwidth() {
 }
 
 // Periodically announce mining availability
-
 async function announceAvailability() {
   const stats = await getNodeStats(); // Fetch peer stats (location, latency, bandwidth)
+  const multiaddrs = node.getMultiaddrs().map((ma) => ma.toString()); // Get multiaddrs
   
-  console.log(`📢 Announcing miner availability:`, stats);
+  console.log(`📢 Announcing miner availability:`, stats, { multiaddrs });
 
   try {
     // Check if the peer already exists in the DB
@@ -123,6 +123,7 @@ async function announceAvailability() {
       existingPeer.location = stats.location;
       existingPeer.latency = stats.latency;
       existingPeer.bandwidth = stats.bandwidth;
+      existingPeer.multiaddrs = multiaddrs; // Store multiaddrs
       existingPeer.lastSeen = new Date();
       await existingPeer.save();
       console.log("🔄 Updated peer information in the database.");
@@ -133,6 +134,7 @@ async function announceAvailability() {
         location: stats.location,
         latency: stats.latency,
         bandwidth: stats.bandwidth,
+        multiaddrs: multiaddrs, // Store multiaddrs
         lastSeen: new Date(),
       });
       console.log("✅ Peer added to the database.");
@@ -141,14 +143,9 @@ async function announceAvailability() {
     console.error("❌ Error saving peer to the database:", error);
   }
 
-  // Store in DHT (optional)
-  await node.services.dht.put(
-    Buffer.from(`miner-${node.peerId.toString()}`),
-    Buffer.from(JSON.stringify(stats))
-  );
-
   setTimeout(announceAvailability, 60000); // Run every 60 seconds
 }
+
 
 announceAvailability(); // Run at startup
 
