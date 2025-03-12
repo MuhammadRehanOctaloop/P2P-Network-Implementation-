@@ -14,6 +14,11 @@ import os from "os";
 import { performance } from "perf_hooks";
 import net from "net";
 import https from "https";
+import { connectDB } from "./database.js"; // Import DB connection
+import { Peer } from "./peerModel.js"; // Import the Peer model
+
+
+await connectDB(); // Connect to MongoDB at startup
 
 // Bootstrap peers
 const bootstrapPeers = [
@@ -103,17 +108,50 @@ function getNetworkBandwidth() {
 }
 
 // Periodically announce mining availability
+
 async function announceAvailability() {
-  const stats = await getNodeStats();
+  const stats = await getNodeStats(); // Fetch peer stats (location, latency, bandwidth)
+  
   console.log(`📢 Announcing miner availability:`, stats);
+
+  try {
+    // Check if the peer already exists in the DB
+    const existingPeer = await Peer.findOne({ peerId: node.peerId.toString() });
+
+    if (existingPeer) {
+      // Update the peer data
+      existingPeer.location = stats.location;
+      existingPeer.latency = stats.latency;
+      existingPeer.bandwidth = stats.bandwidth;
+      existingPeer.lastSeen = new Date();
+      await existingPeer.save();
+      console.log("🔄 Updated peer information in the database.");
+    } else {
+      // Insert new peer entry
+      await Peer.create({
+        peerId: node.peerId.toString(),
+        location: stats.location,
+        latency: stats.latency,
+        bandwidth: stats.bandwidth,
+        lastSeen: new Date(),
+      });
+      console.log("✅ Peer added to the database.");
+    }
+  } catch (error) {
+    console.error("❌ Error saving peer to the database:", error);
+  }
+
+  // Store in DHT (optional)
   await node.services.dht.put(
     Buffer.from(`miner-${node.peerId.toString()}`),
     Buffer.from(JSON.stringify(stats))
   );
-  setTimeout(announceAvailability, 6000); // Announce every 60 seconds
+
+  setTimeout(announceAvailability, 60000); // Run every 60 seconds
 }
 
-announceAvailability();
+announceAvailability(); // Run at startup
+
 
 // Handle incoming messages
 node.handle("/chat/1.0.0", async ({ stream, connection }) => {

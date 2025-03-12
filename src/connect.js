@@ -10,6 +10,9 @@ import { fromString } from 'uint8arrays/from-string'
 import readline from 'readline'
 import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import fetch from 'node-fetch'; // Used to get geolocation
+import { connectDB } from "./database.js"; // Import DB connection
+
+await connectDB(); // Connect to MongoDB at startup
 
 const bootstrapPeers = [
   '/ip4/192.168.18.65/tcp/15001/p2p/YOUR_PEER_ID',
