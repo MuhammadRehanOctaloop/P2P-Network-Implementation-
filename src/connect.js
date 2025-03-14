@@ -12,6 +12,7 @@ import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import { connectDB } from "./database.js";
 import { Peer } from "./peerModel.js";
 import { peerIdFromString } from '@libp2p/peer-id'
+import { ping } from "@libp2p/ping";
 
 await connectDB();
 
@@ -39,6 +40,7 @@ const node = await createLibp2p({
     dht: kadDHT({ protocol: '/ipfs/kad/1.0.0', clientMode: true }),
     identify: identify(),
     bootstrap: bootstrap({ list: bootstrapPeers }),
+    ping: ping(),  // ✅ Enable ping service
   },
   relay: {
     enabled: true,
@@ -53,29 +55,80 @@ await node.start();
 console.log('✅ Node started with ID:', node.peerId.toString());
 console.log('📡 Listening on:', node.getMultiaddrs().map(ma => ma.toString()).join('\n'));
 
-// ✅ Get Best Peer from DB
+async function pingPeer(peer) {
+  return new Promise(async (resolve) => {
+    const start = Date.now();
+    try {
+      const peerId = peerIdFromString(peer.peerId);
+      const connection = await node.dial(peerId); // ✅ Establish a connection
+      await node.services.ping.ping(peerId); // ✅ Use libp2p's ping service
+      const latency = Date.now() - start;
+      console.log(`⏱️ Pinged ${peer.peerId}: ${latency}ms`);
+      resolve({ ...peer, latency });
+    } catch (error) {
+      console.error(`❌ Ping failed for ${peer.peerId}:`, error);
+      resolve(null); // Mark as unreachable
+    }
+  });
+}
+
+
 async function getBestPeer() {
   try {
-    const bestPeer = await Peer.findOne().sort({ latency: 1 }).select("peerId multiaddrs latency -_id");
+    const peers = await Peer.find().select("peerId multiaddrs -_id"); // ✅ Fetch all peers
 
-    if (!bestPeer || !bestPeer.multiaddrs || bestPeer.multiaddrs.length === 0) {
-      console.log("⚠️ No best peer available.");
+    if (!peers.length) {
+      console.log("⚠️ No available peers.");
       return null;
     }
 
-    console.log("🏆 Best Peer Selected:", bestPeer);
+    console.log("🔍 Pinging peers to determine the best one...");
+    const pingResults = await Promise.all(peers.map(pingPeer));
+
+    // Filter out unreachable peers and select the lowest-latency peer
+    const bestPeer = pingResults
+      .filter(peer => peer !== null) // Remove failed peers
+      .sort((a, b) => a.latency - b.latency)[0]; // Sort by lowest latency
+
+    if (!bestPeer) {
+      console.log("❌ No reachable peers found.");
+      return null;
+    }
+
+    console.log(`🏆 Best peer selected: ${bestPeer.peerId} (Latency: ${bestPeer.latency}ms)`);
     return bestPeer;
   } catch (error) {
-    console.error("❌ Error fetching best peer:", error);
+    console.error("❌ Error finding the best peer:", error);
     return null;
   }
 }
+
+
+
+// ✅ Get Best Peer from DB
+// async function getBestPeer() {
+//   try {
+//     const bestPeer = await Peer.findOne().sort({ latency: 1 }).select("peerId multiaddrs latency -_id");
+
+//     if (!bestPeer || !bestPeer.multiaddrs || bestPeer.multiaddrs.length === 0) {
+//       console.log("⚠️ No best peer available.");
+//       return null;
+//     }
+
+//     console.log("🏆 Best Peer Selected:", bestPeer);
+//     return bestPeer;
+//   } catch (error) {
+//     console.error("❌ Error fetching best peer:", error);
+//     return null;
+//   }
+// }
 
 // ✅ Interactive chat input setup
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 // ✅ Connect to the best peer & start chat
-async function connectToBestPeer() {
+// ✅ Reconnection with Exponential Backoff
+async function connectToBestPeer(retryCount = 0) {
   const bestPeer = await getBestPeer();
   if (!bestPeer || !bestPeer.multiaddrs.length) {
     console.log("⚠️ No valid peer addresses found.");
@@ -83,16 +136,22 @@ async function connectToBestPeer() {
   }
 
   try {
-    const peerId = peerIdFromString(bestPeer.peerId); // Convert string to PeerId
-    const stream = await node.dialProtocol(peerId, '/chat/1.0.0');
+    const peerId = peerIdFromString(bestPeer.peerId);
+    const stream = await node.dialProtocol(peerId, "/chat/1.0.0");
     console.log(`✅ Connected to Best Peer: ${bestPeer.peerId} (Latency: ${bestPeer.latency}ms)`);
-
+    
     startChatSession(stream);
+    return; // Exit function after a successful connection
   } catch (err) {
     console.error(`❌ Failed to connect to ${bestPeer.peerId}:`, err);
+    
+    // Implement exponential backoff (Retry after increasing delay)
+    const delay = Math.min(5000 * (2 ** retryCount), 60000); // Max delay 60s
+    console.log(`🔄 Retrying in ${delay / 1000} seconds...`);
+    
+    setTimeout(() => connectToBestPeer(retryCount + 1), delay);
   }
 }
-
 
 // ✅ Continuous Chat Session (No Recursive Calls)
 function startChatSession(stream) {
@@ -134,5 +193,5 @@ async function receiveMessages(stream) {
 }
 
 
-// ✅ Start Connecting to the Best Peer (Using DB Data)
-setTimeout(connectToBestPeer, 2000);
+// ✅ Start Connecting to the Best Peer
+setTimeout(() => connectToBestPeer(), 2000);

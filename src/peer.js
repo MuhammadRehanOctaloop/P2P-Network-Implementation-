@@ -16,6 +16,8 @@ import net from "net";
 import https from "https";
 import { connectDB } from "./database.js"; // Import DB connection
 import { Peer } from "./peerModel.js"; // Import the Peer model
+import { ping } from "@libp2p/ping";
+
 
 
 await connectDB(); // Connect to MongoDB at startup
@@ -34,6 +36,7 @@ const node = await createLibp2p({
     dht: kadDHT({ protocol: "/ipfs/kad/1.0.0", clientMode: false }),
     identify: identify(),
     bootstrap: bootstrap({ list: bootstrapPeers }),
+    ping: ping(),  // ✅ Enable ping service
     relay: circuitRelayServer({}),
   },
 });
@@ -107,6 +110,8 @@ function getNetworkBandwidth() {
   return bandwidth;
 }
 
+
+
 // Periodically announce mining availability
 async function announceAvailability() {
   const stats = await getNodeStats(); // Fetch peer stats (location, latency, bandwidth)
@@ -173,6 +178,41 @@ node.handle("/chat/1.0.0", async ({ stream, connection }) => {
 node.addEventListener("peer:discovery", async (evt) => {
   console.log(`🔍 Discovered peer: ${evt.detail.id.toString()}`);
 });
+
+// Function to remove inactive peers and log them before deletion
+async function removeInactivePeers() {
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
+
+  try {
+    // Find inactive peers
+    const inactivePeers = await Peer.find({ lastSeen: { $lt: fiveMinutesAgo } });
+
+    if (inactivePeers.length > 0) {
+      console.log(`⚠️ Found ${inactivePeers.length} inactive peers. Logging before removal...`);
+      
+      inactivePeers.forEach((peer) => {
+        console.log(`🛑 Removing Peer: ${peer.peerId} (Last Seen: ${peer.lastSeen})`);
+      });
+
+      // (Optional) Store removed peers in a separate collection
+      // await RemovedPeer.insertMany(inactivePeers);
+
+      // Remove inactive peers
+      const removedPeers = await Peer.deleteMany({ lastSeen: { $lt: fiveMinutesAgo } });
+      console.log(`🗑️ Successfully removed ${removedPeers.deletedCount} inactive peers.`);
+    } else {
+      console.log("✅ No inactive peers found.");
+    }
+  } catch (error) {
+    console.error("❌ Error removing inactive peers:", error);
+  }
+
+  setTimeout(removeInactivePeers, 5 * 60 * 1000); // Run every 5 minutes
+}
+
+// Start cleanup process
+removeInactivePeers();
+
 
 // Interactive chat input
 const rl = readline.createInterface({
