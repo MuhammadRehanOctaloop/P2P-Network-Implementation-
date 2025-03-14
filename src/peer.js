@@ -18,8 +18,6 @@ import { connectDB } from "./database.js"; // Import DB connection
 import { Peer } from "./peerModel.js"; // Import the Peer model
 import { ping } from "@libp2p/ping";
 
-
-
 await connectDB(); // Connect to MongoDB at startup
 
 // Bootstrap peers
@@ -99,7 +97,7 @@ async function measureLatency() {
 function getNetworkBandwidth() {
   const networkInterfaces = os.networkInterfaces();
   let bandwidth = "Unknown";
-
+  
   for (const key in networkInterfaces) {
     for (const net of networkInterfaces[key]) {
       if (!net.internal && net.family === "IPv4") {
@@ -118,11 +116,11 @@ async function announceAvailability() {
   const multiaddrs = node.getMultiaddrs().map((ma) => ma.toString()); // Get multiaddrs
   
   console.log(`📢 Announcing miner availability:`, stats, { multiaddrs });
-
+  
   try {
     // Check if the peer already exists in the DB
     const existingPeer = await Peer.findOne({ peerId: node.peerId.toString() });
-
+    
     if (existingPeer) {
       // Update the peer data
       existingPeer.location = stats.location;
@@ -153,6 +151,14 @@ async function announceAvailability() {
 
 
 announceAvailability(); // Run at startup
+
+setInterval(async () => {
+  console.log("📡 Announcing peer in DHT...");
+  for (const addr of node.getMultiaddrs()) {
+    await node.services.dht.provide(addr);
+  }
+}, 30000);
+
 
 
 // Handle incoming messages

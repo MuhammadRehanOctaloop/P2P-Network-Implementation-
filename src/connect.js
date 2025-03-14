@@ -89,39 +89,20 @@ async function getBestPeer() {
     const bestPeer = pingResults
       .filter(peer => peer !== null) // Remove failed peers
       .sort((a, b) => a.latency - b.latency)[0]; // Sort by lowest latency
+      console.log(bestPeer)
 
     if (!bestPeer) {
       console.log("❌ No reachable peers found.");
       return null;
     }
 
-    console.log(`🏆 Best peer selected: ${bestPeer.peerId} (Latency: ${bestPeer.latency}ms)`);
+    console.log(`🏆 Best peer selected: ${bestPeer._doc.peerId} (Latency: ${bestPeer.latency}ms)`);
     return bestPeer;
   } catch (error) {
     console.error("❌ Error finding the best peer:", error);
     return null;
   }
 }
-
-
-
-// ✅ Get Best Peer from DB
-// async function getBestPeer() {
-//   try {
-//     const bestPeer = await Peer.findOne().sort({ latency: 1 }).select("peerId multiaddrs latency -_id");
-
-//     if (!bestPeer || !bestPeer.multiaddrs || bestPeer.multiaddrs.length === 0) {
-//       console.log("⚠️ No best peer available.");
-//       return null;
-//     }
-
-//     console.log("🏆 Best Peer Selected:", bestPeer);
-//     return bestPeer;
-//   } catch (error) {
-//     console.error("❌ Error fetching best peer:", error);
-//     return null;
-//   }
-// }
 
 // ✅ Interactive chat input setup
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -130,20 +111,15 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 // ✅ Reconnection with Exponential Backoff
 async function connectToBestPeer(retryCount = 0) {
   const bestPeer = await getBestPeer();
-  if (!bestPeer || !bestPeer.multiaddrs.length) {
-    console.log("⚠️ No valid peer addresses found.");
-    return;
-  }
-
   try {
-    const peerId = peerIdFromString(bestPeer.peerId);
+    const peerId = peerIdFromString(bestPeer._doc.peerId);
     const stream = await node.dialProtocol(peerId, "/chat/1.0.0");
-    console.log(`✅ Connected to Best Peer: ${bestPeer.peerId} (Latency: ${bestPeer.latency}ms)`);
+    console.log(`✅ Connected to Best Peer: ${peerId} (Latency: ${bestPeer.latency}ms)`);
     
     startChatSession(stream);
     return; // Exit function after a successful connection
   } catch (err) {
-    console.error(`❌ Failed to connect to ${bestPeer.peerId}:`, err);
+    console.error(`❌ Failed to connect to ${peerId}:`, err);
     
     // Implement exponential backoff (Retry after increasing delay)
     const delay = Math.min(5000 * (2 ** retryCount), 60000); // Max delay 60s
