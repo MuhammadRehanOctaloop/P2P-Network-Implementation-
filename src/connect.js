@@ -88,8 +88,7 @@ async function getBestPeer() {
     // Filter out unreachable peers and select the lowest-latency peer
     const bestPeer = pingResults
       .filter(peer => peer !== null) // Remove failed peers
-      .sort((a, b) => a.latency - b.latency)[0]; // Sort by lowest latency
-      console.log(bestPeer)
+      .sort((a, b) => a.latency - b.latency)[0]; // Sort by lowest latencyc
 
     if (!bestPeer) {
       console.log("❌ No reachable peers found.");
