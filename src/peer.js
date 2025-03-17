@@ -31,22 +31,39 @@ const bootstrapPeers = [
 ];
 
 const node = await createLibp2p({
-  addresses: { listen: [
-    '/ip4/0.0.0.0/tcp/0',
-    '/webrtc', // ✅ Enable WebRTC transport
-    '/webrtc-direct'
-  ] },
-  transports: [tcp(), webRTC(), webSockets(), circuitRelayTransport()],
+  addresses: {
+    listen: [
+      '/ip4/0.0.0.0/tcp/0',
+      '/webrtc',
+      '/webrtc-direct',
+      '/dns4/wrtc-star1.par.dwebops.pub/tcp/443/wss/p2p-webrtc-star/', // ✅ WebRTC Star Relay
+      '/dns4/wrtc-star2.par.dwebops.pub/tcp/443/wss/p2p-webrtc-star/'
+    ]
+  },
+  transports: [
+    tcp(),
+    webRTC(),
+    webSockets(),
+    circuitRelayTransport({ discoverRelays: 2 }) // 🔹 Use public relays
+  ],
   connectionEncrypters: [noise()],
   streamMuxers: [yamux(), mplex()],
   services: {
-    dht: kadDHT({ protocol: "/ipfs/kad/1.0.0", clientMode: false }),
+    dht: kadDHT({ protocol: '/ipfs/kad/1.0.0', clientMode: true }),
     identify: identify(),
     bootstrap: bootstrap({ list: bootstrapPeers }),
-    ping: ping(),  // ✅ Enable ping service
-    relay: circuitRelayServer({}),
+    ping: ping(),
+  },
+  relay: {
+    enabled: true,
+    hop: {
+      enabled: true,  // 🔹 Allow using relays
+      active: true,   // 🔹 Act as a relay for other peers
+    },
   },
 });
+
+
 
 await node.start();
 console.log("✅ Node started with ID:", node.peerId.toString());

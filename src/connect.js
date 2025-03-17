@@ -20,6 +20,7 @@ import { mplex } from '@libp2p/mplex';
 
 await connectDB();
 
+
 async function getBootstrapPeers() {
   try {
     const peers = await Peer.find({}, { multiaddrs: 1, _id: 0 });
@@ -39,15 +40,17 @@ const node = await createLibp2p({
   addresses: {
     listen: [
       '/ip4/0.0.0.0/tcp/0',
-      '/webrtc', // ✅ Enable WebRTC transport
-      '/webrtc-direct'
+      '/webrtc',
+      '/webrtc-direct',
+      '/dns4/wrtc-star1.par.dwebops.pub/tcp/443/wss/p2p-webrtc-star/', // ✅ WebRTC Star Relay
+      '/dns4/wrtc-star2.par.dwebops.pub/tcp/443/wss/p2p-webrtc-star/'
     ]
   },
   transports: [
     tcp(),
-    webRTC(), // ✅ WebRTC for browser support
-    webSockets(), // ✅ WebSockets as a fallback
-    circuitRelayTransport()
+    webRTC(),
+    webSockets(),
+    circuitRelayTransport({ discoverRelays: 2 }) // 🔹 Use public relays
   ],
   connectionEncrypters: [noise()],
   streamMuxers: [yamux(), mplex()],
@@ -60,8 +63,8 @@ const node = await createLibp2p({
   relay: {
     enabled: true,
     hop: {
-      enabled: true,
-      active: true,
+      enabled: true,  // 🔹 Allow using relays
+      active: true,   // 🔹 Act as a relay for other peers
     },
   },
 });
@@ -69,6 +72,19 @@ const node = await createLibp2p({
 await node.start();
 console.log('✅ Node started with ID:', node.peerId.toString());
 console.log('📡 Listening on:', node.getMultiaddrs().map(ma => ma.toString()).join('\n'));
+
+// async function enableUPnP() {
+//   const nat = new NatAPI();
+
+//   nat.map({ public: 62548, private: 62548, ttl: 3600 }, (err) => {
+//     if (err) {
+//       console.error("❌ UPnP Port Mapping Failed:", err);
+//     } else {
+//       console.log("✅ UPnP Port Mapping Successful!");
+//     }
+//   });
+// }
+// enableUPnP();
 
 
 
