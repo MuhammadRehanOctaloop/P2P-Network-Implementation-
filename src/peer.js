@@ -10,6 +10,7 @@ import { toString } from "uint8arrays/to-string";
 import { Uint8ArrayList } from "uint8arraylist";
 import readline from "readline";
 import { circuitRelayServer } from "@libp2p/circuit-relay-v2";
+import { circuitRelayTransport } from '@libp2p/circuit-relay-v2';
 import os from "os";
 import { performance } from "perf_hooks";
 import net from "net";
@@ -17,6 +18,10 @@ import https from "https";
 import { connectDB } from "./database.js"; // Import DB connection
 import { Peer } from "./peerModel.js"; // Import the Peer model
 import { ping } from "@libp2p/ping";
+import { webRTC } from '@libp2p/webrtc';
+import { webSockets } from '@libp2p/websockets';
+import { mplex } from '@libp2p/mplex';
+
 
 await connectDB(); // Connect to MongoDB at startup
 
@@ -26,10 +31,14 @@ const bootstrapPeers = [
 ];
 
 const node = await createLibp2p({
-  addresses: { listen: ["/ip4/0.0.0.0/tcp/15001"] },
-  transports: [tcp()],
+  addresses: { listen: [
+    '/ip4/0.0.0.0/tcp/0',
+    '/webrtc', // ✅ Enable WebRTC transport
+    '/webrtc-direct'
+  ] },
+  transports: [tcp(), webRTC(), webSockets(), circuitRelayTransport()],
   connectionEncrypters: [noise()],
-  streamMuxers: [yamux()],
+  streamMuxers: [yamux(), mplex()],
   services: {
     dht: kadDHT({ protocol: "/ipfs/kad/1.0.0", clientMode: false }),
     identify: identify(),
@@ -74,14 +83,32 @@ async function getLocation() {
 async function measureLatency() {
   return new Promise((resolve, reject) => {
     const host = "192.168.18.65"; // Change this to the actual peer's IP
-    const port = 15001; // Ensure the peer is listening on this port
+
+    // Extracting transport port dynamically
+    const multiaddrs = node.getMultiaddrs(); 
+    let port = null;
+
+    for (const ma of multiaddrs) {
+      const parts = ma.toString().split("/"); // Split the multiaddress into parts
+      const portIndex = parts.indexOf("tcp") + 1;
+      if (portIndex > 0 && portIndex < parts.length) {
+        port = parseInt(parts[portIndex]); // Extract port after "tcp"
+        break;
+      }
+    }
+
+    if (!port) {
+      console.error("❌ No valid TCP port found for the node.");
+      return reject("Unknown");
+    }
+
+    console.log(`🌐 Measuring latency to ${host}:${port}`);
 
     const start = performance.now();
     const socket = new net.Socket();
 
     socket.connect(port, host, () => {
       const latency = performance.now() - start;
-      // console.log(`⏱️ Measured TCP latency to ${host}:${port} → ${latency.toFixed(2)} ms`);
       socket.destroy();
       resolve(latency.toFixed(2));
     });
@@ -92,6 +119,7 @@ async function measureLatency() {
     });
   });
 }
+
 
 // Simulate getting network bandwidth
 function getNetworkBandwidth() {

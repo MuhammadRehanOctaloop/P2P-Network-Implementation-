@@ -34,9 +34,12 @@
     "@libp2p/circuit-relay-v2": "^3.2.6",
     "@libp2p/identify": "^3.0.25",
     "@libp2p/kad-dht": "^14.2.13",
+    "@libp2p/mplex": "^11.0.31",
     "@libp2p/peer-id": "^5.0.16",
     "@libp2p/ping": "^2.0.26",
     "@libp2p/tcp": "^10.1.6",
+    "@libp2p/webrtc": "^5.2.8",
+    "@libp2p/websockets": "^9.2.7",
     "@multiformats/multiaddr": "^12.4.0",
     "dotenv": "^16.4.7",
     "fast-speedtest-api": "^0.3.2",
@@ -46,6 +49,7 @@
     "mongodb": "^6.14.2",
     "mongoose": "^8.12.1",
     "multiaddr": "^10.0.1",
+    "nat-api": "^0.1.0",
     "node-fetch": "^3.3.2"
   }
 }
