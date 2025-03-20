@@ -16,9 +16,66 @@ import { ping } from "@libp2p/ping";
 import { webRTC } from '@libp2p/webrtc';
 import { webSockets } from '@libp2p/websockets';
 import { mplex } from '@libp2p/mplex';
-// import NatAPI from "nat-api";
+import upnp from 'nat-upnp';
+import natPMP from 'nat-pmp';
 
 await connectDB();
+
+
+// async function enableUPnP() {
+//   return new Promise((resolve) => {
+//     const client = upnp.createClient();
+
+//     client.portMapping({
+//       public: 4001,   // Port exposed to the internet
+//       private: 4001,  // Port used inside the network
+//       protocol: 'TCP',
+//       description: 'DVPN Node'
+//     }, (err) => {
+//       if (err) {
+//         console.warn("⚠️ UPnP Port Forwarding Failed. Proceeding without UPnP.");
+//         resolve(false);
+//       } else {
+//         console.log("✅ UPnP Port Forwarded Successfully!");
+//         resolve(true);
+//       }
+//     });
+
+//     client.externalIp((err, ip) => {
+//       if (!err) console.log("🌍 External IP:", ip);
+//     });
+//   });
+// }
+
+async function enableUPnP() {
+  return new Promise((resolve, reject) => {
+    const client = upnp.createClient();
+    
+    client.portMapping(
+      {
+        public: 4001,    // External port
+        private: 4001,   // Internal port
+        ttl: 3600,       // Time to live (1 hour)
+        protocol: 'TCP'  // Use TCP (important for libp2p)
+      },
+      (err) => {
+        if (err) {
+          console.error("❌ UPnP Port Forwarding Failed:", err);
+          reject(err);
+        } else {
+          console.log("✅ UPnP Port Forwarding Successful on TCP 4001");
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+enableUPnP().catch(() => {
+  console.log("⚠️ Continuing without UPnP...");
+});
+
+
 
 
 async function getBootstrapPeers() {
@@ -48,7 +105,16 @@ const node = await createLibp2p({
   },
   transports: [
     tcp(),
-    webRTC(),
+    webRTC({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },  
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelay', credential: 'openrelay' }  // Free TURN server
+      ]
+    }),
     webSockets(),
     circuitRelayTransport({ discoverRelays: 2 }) // 🔹 Use public relays
   ],
@@ -69,24 +135,11 @@ const node = await createLibp2p({
   },
 });
 
+
+
 await node.start();
 console.log('✅ Node started with ID:', node.peerId.toString());
 console.log('📡 Listening on:', node.getMultiaddrs().map(ma => ma.toString()).join('\n'));
-
-// async function enableUPnP() {
-//   const nat = new NatAPI();
-
-//   nat.map({ public: 62548, private: 62548, ttl: 3600 }, (err) => {
-//     if (err) {
-//       console.error("❌ UPnP Port Mapping Failed:", err);
-//     } else {
-//       console.log("✅ UPnP Port Mapping Successful!");
-//     }
-//   });
-// }
-// enableUPnP();
-
-
 
 async function pingPeer(peer) {
   return new Promise(async (resolve) => {
@@ -97,6 +150,7 @@ async function pingPeer(peer) {
       await node.services.ping.ping(peerId);
       const latency = Date.now() - start;
       console.log(`⏱️ Pinged ${peer.peerId}: ${latency}ms`);
+      // console.log(peer)
       resolve({ ...peer, latency });
     } catch (error) {
       console.error(`❌ Ping failed for ${peer.peerId}:`, error);
@@ -119,6 +173,7 @@ async function getBestPeer() {
       console.log("❌ No reachable peers found.");
       return null;
     }
+    // console.log(bestPeer)
     console.log(`🏆 Best peer selected: ${bestPeer._doc.peerId} (Latency: ${bestPeer.latency}ms)`);
     return bestPeer;
   } catch (error) {
